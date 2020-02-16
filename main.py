@@ -15,7 +15,7 @@ ROOT_DIR = "src"
 CONFIG_INI_FILE = os.path.join(ROOT_DIR, "config.ini")
 
 
-def main(video_file, num):
+def main(video_file, cam_ids):
     global conn, cur
 
     # connect to PostgreSQL database
@@ -27,7 +27,7 @@ def main(video_file, num):
     model = detection.load_inference_resnet50()
 
     # fetch areas that will be analyzed
-    parking_spots = fetch_parking_spots(num)
+    ids, spots = fetch_parking_spots(cam_ids)
 
     # get video data
     vcap = cv2.VideoCapture(video_file)
@@ -57,16 +57,16 @@ def main(video_file, num):
         frame_counter += 1
 
 
-def fetch_parking_spots(camera_num):
+def fetch_parking_spots(cam_ids):
     # get hex locations of parking spots
-    query = """SELECT location FROM spots
-               WHERE camera_id = %s"""
-    cur.execute(query, (camera_num,))
-    hex_spots = [r[0] for r in cur.fetchall()]
+    query = """SELECT id, location FROM spots
+               WHERE camera_id = ANY(%s)"""
+    cur.execute(query, (cam_ids,))
+    ids, hex_spots =  zip(*cur.fetchall())
 
     # convert to shapely objects
     spots = [wkb.loads(hex_spot, hex=True) for hex_spot in hex_spots]
-    return spots
+    return ids, spots
 
 
 def parse_arguments(argv):
@@ -76,7 +76,7 @@ def parse_arguments(argv):
     # live feed, not from a video file.
     parser.add_argument("video_file", type=str,
                         help="path/to/video.mp4")
-    parser.add_argument("num", type=int,
+    parser.add_argument("cam_ids", type=int, nargs="+",
                         help="section to which analyze")
     return vars(parser.parse_args())
 

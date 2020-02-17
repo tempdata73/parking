@@ -45,3 +45,21 @@ def detect_objects(model, image, coco_cat_names, threshold=0):
     output = model(image_input)[0]
     bboxes = filter_objects(output, coco_cat_names, threshold)
     return bboxes
+
+
+def fetch_centroids(bounding_boxes):
+    centroids = np.c_[
+        bounding_boxes[:, [0, 2]].mean(axis=1),
+        bounding_boxes[:, [1, 3]].mean(axis=1)]
+    return centroids.astype("int")
+
+
+def intersection_over_union(poly_1, poly_2):
+    inter_area = poly_1.intersection(poly_2).area
+    iou = inter_area / (poly_1.area + poly_2.area - inter_area)
+    return iou
+
+
+def is_occupied(spot, candidate, threshold=0.15):
+    iou = intersection_over_union(spot, candidate)
+    return iou > threshold

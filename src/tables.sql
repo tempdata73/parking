@@ -1,8 +1,7 @@
 -- We'll need PostGIS for interpreting spatial data and locations
 CREATE EXTENSION postgis;
 
--- The tables will be used so as to create some log info
--- especially in the cameras table
+-- Collection of cameras that analyze a whole place
 CREATE TABLE cameras (
     id integer PRIMARY KEY,
     location text NOT NULL,
@@ -15,7 +14,7 @@ CREATE TABLE spots (
     id SERIAL PRIMARY KEY,
     camera_id integer NOT NULL,
     location geometry NOT NULL,
-    -- Actual information we might be interested in
+    -- Actual information we will be interested in
     is_occupied boolean,
     occupied_time time,
     is_overtime boolean,

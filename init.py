@@ -19,7 +19,7 @@ CONFIG_INI_FILE = os.path.join(ROOT_DIR, "config.ini")
 def main(video_file, num, loc):
     # connect to database
     logging.info("Connecting to database")
-    db_params = config(filename=CONFIG_INI_FILE, section="postgresql")
+    db_params = config(filename=CONFIG_INI_FILE)
     conn = psycopg2.connect(**db_params)
     cur = conn.cursor()
 
@@ -55,7 +55,7 @@ def main(video_file, num, loc):
 
     # Initialize parking lots that will be later analyzed
     query = """INSERT INTO spots VALUES
-                 (DEFAULT, %s, ST_SetSRID(%s::geometry, %s), false, false)"""
+               (DEFAULT, %s, ST_SetSRID(%s::geometry, %s), false, '00:00:00', false)"""
     logging.info("Select areas of interest")
     ret, frame = cap.read()
     coords = events.select_area(frame)

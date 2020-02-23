@@ -17,6 +17,7 @@ CREATE TABLE spots (
     location geometry NOT NULL,
     -- Actual information we might be interested in
     is_occupied boolean,
+    occupied_time time,
     is_overtime boolean,
     -- If camera is no longer available, delete records
     -- that reference to it

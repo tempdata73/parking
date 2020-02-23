@@ -18,11 +18,11 @@ ROOT_DIR = "src"
 CONFIG_INI_FILE = os.path.join(ROOT_DIR, "config.ini")
 
 
-def main(video_file, cam_ids):
+def main(args):
     global conn, cur
 
     # connect to PostgreSQL database
-    db_params = config(filename=CONFIG_INI_FILE, section="postgresql")
+    db_params = config(filename=CONFIG_INI_FILE)
     conn = psycopg2.connect(**db_params)
     cur = conn.cursor()
 
@@ -30,14 +30,15 @@ def main(video_file, cam_ids):
     model = detection.load_inference_resnet50()
 
     # fetch areas that will be analyzed
-    spots = fetch_parking_spots(cam_ids)
+    spots = fetch_parking_spots(args.cam_ids)
 
     # get video data
-    vcap = cv2.VideoCapture(video_file)
+    vcap = cv2.VideoCapture(args.video_file)
     fps = int(vcap.get(cv2.CAP_PROP_FPS))
     frame_counter = 0
+    detection_interval = 75
 
-    # start analyzing parking_spot
+    # start analyzing parking lot
     while vcap.isOpened():
         ret, frame = vcap.read()
         key = cv2.waitKey(fps) & 0xFF
@@ -48,9 +49,9 @@ def main(video_file, cam_ids):
             break
 
         # check if parking spots are occupied every nth frame
-        if frame_counter % 75 == 0:
+        if frame_counter % detection_interval == 0:
             # set occupancy for each spot to false
-            reset_occupancy()
+            reset_occupancy(args.cam_ids)
 
             # detect which spots are occupied
             bboxes = detection.detect_objects(
@@ -59,21 +60,40 @@ def main(video_file, cam_ids):
 
             # update occupancy in table for each spot
             update_occupancy(occupied_spots)
-
-        # display results
-        spots, colors = fetch_spot_colors(cam_ids)
-        for spot, color in zip(spots, colors):
-            coords = np.array(spot.exterior.coords, dtype="int")
-            cv2.fillPoly(frame, [coords], color)
-        cv2.imshow("parking lot", frame)
-
-        # update counter
+            
+        # check if spot_time > time_threshold
+        update_occupied_time(fps)
+        update_overtime(args.limit)
         frame_counter += 1
 
-    # close everything
+        # display video
+        frame = display(frame)
+        cv2.imshow("parking lot", frame)
+
+    # reset and close connections
     vcap.release()
+    reset()
     cur.close()
     conn.close()
+
+
+def display(frame):
+    cur.execute("SELECT location, is_occupied, is_overtime FROM spots;")
+    hex_poly, is_occupied, is_overtime = zip(*cur.fetchall())
+    poly = [wkb.loads(hpoly, hex=True) for hpoly in hex_poly]
+        
+    for spot, occupied, overtime in zip(poly, is_occupied, is_overtime):
+        if overtime:
+            color = (255, 0, 0)
+        elif occupied:
+            color = (0, 0, 255)
+        else:
+            color = (0, 255, 0)
+
+        coords = np.array(spot.exterior.coords, dtype="int")
+        cv2.fillPoly(frame, [coords], color)
+
+    return frame
 
 
 def fetch_parking_spots(cam_ids):
@@ -104,23 +124,19 @@ def fetch_occupied_spots(spots, candidates):
     return occupied_spots
 
 
-def fetch_spot_colors(cam_ids):
-    color_mapper = {True: (0, 0, 255), False: (0, 255, 0)}
-
-    query = """SELECT location, is_occupied FROM spots
-               WHERE camera_id = ANY(%s)"""
-    cur.execute(query, (cam_ids,))
-    hex_spots, is_occupied = zip(*cur.fetchall())
-
-    spots = [wkb.loads(hex_spot, hex=True) for hex_spot in hex_spots]
-    colors = list(map(color_mapper.get, is_occupied))
-
-    return spots, colors
-
-
-def reset_occupancy():
+def reset_occupancy(cam_ids):
     query = """UPDATE spots
-               SET is_occupied = false;"""
+               SET is_occupied = false
+               WHERE camera_id = ANY(%s);"""
+    cur.execute(query, (cam_ids,))
+    conn.commit()
+
+
+def reset():
+    query = """UPDATE spots
+               SET is_occupied = false,
+                   occupied_time = '00:00:00',
+                   is_overtime = false"""
     cur.execute(query)
     conn.commit()
 
@@ -133,6 +149,30 @@ def update_occupancy(occupied_spots):
     conn.commit()
 
 
+def update_occupied_time(fps):
+    # add time to occupied spots
+    query = """UPDATE spots
+               SET occupied_time = occupied_time + interval '%s seconds'
+               WHERE is_occupied = true;"""
+    cur.execute(query, (1/fps,))
+
+    # reset time to newly available spots
+    query = """UPDATE spots
+               SET occupied_time = '00:00:00',
+                   is_overtime = false
+               WHERE is_occupied = false;"""
+    cur.execute(query)
+    conn.commit()
+
+
+def update_overtime(limit):
+    query = """UPDATE spots
+               SET is_overtime = true
+               WHERE occupied_time > %s;"""
+    cur.execute(query, (limit,))
+    conn.commit()
+
+
 def parse_arguments(argv):
     parser = argparse.ArgumentParser()
     # TODO: Data is supposed to be fetched from
@@ -141,8 +181,11 @@ def parse_arguments(argv):
                         help="path/to/video.mp4")
     parser.add_argument("cam_ids", type=int, nargs="+",
                         help="section to which analyze")
-    return vars(parser.parse_args())
+    parser.add_argument("--limit", "-l", type=str, default="00:00:15",
+                        help="Allowed time for parked vehicle")
+
+    return parser.parse_args()
 
 
 if __name__ == "__main__":
-    main(**parse_arguments(sys.argv[1:]))
+    main(parse_arguments(sys.argv[1:]))

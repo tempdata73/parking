@@ -69,7 +69,7 @@ def main(args):
         frame_counter += 1
 
         # display video
-        frame = display(frame)
+        frame = display(frame, args.cam_ids)
         cv2.imshow("parking lot", frame)
 
     # reset and close connections
@@ -79,23 +79,32 @@ def main(args):
     conn.close()
 
 
-def display(frame):
-    cur.execute("SELECT location, is_occupied, is_overtime FROM spots;")
-    hex_poly, is_occupied, is_overtime = zip(*cur.fetchall())
-    poly = [wkb.loads(hpoly, hex=True) for hpoly in hex_poly]
+def display(frame, cam_ids):
+    mask = frame.copy()
+
+    # fetch data
+    query = """SELECT location, is_occupied, is_overtime
+               FROM spots
+               WHERE camera_id = ANY(%s);"""
+    cur.execute(query, (cam_ids,))
+    hspots, occupied, overtime = zip(*cur.fetchall())
+    spots = [wkb.loads(hspot, hex=True) for hspot in hspots]
         
-    for spot, occupied, overtime in zip(poly, is_occupied, is_overtime):
-        if overtime:
+    # draw parking spots
+    for spot, is_occupied, is_overtime in zip(spots, occupied, overtime):
+        if is_overtime:
             color = (255, 0, 0)
-        elif occupied:
+        elif is_occupied:
             color = (0, 0, 255)
         else:
             color = (0, 255, 0)
-
         coords = np.array(spot.exterior.coords, dtype="int")
-        cv2.fillPoly(frame, [coords], color)
+        cv2.fillPoly(mask, [coords], color)
+    
+    # make colors more transparent
+    mask = cv2.addWeighted(mask, 0.6, frame, 0.4, 0)
 
-    return frame
+    return mask
 
 
 def time2seconds(time_interval):

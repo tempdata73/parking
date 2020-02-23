@@ -2,6 +2,8 @@
 import os
 import sys
 import cv2
+import time
+import datetime
 import psycopg2
 import argparse
 import numpy as np
@@ -36,7 +38,7 @@ def main(args):
     vcap = cv2.VideoCapture(args.video_file)
     fps = int(vcap.get(cv2.CAP_PROP_FPS))
     frame_counter = 0
-    detection_interval = 75
+    detection_interval = fps * time2seconds(args.time_interval)
 
     # start analyzing parking lot
     while vcap.isOpened():
@@ -94,6 +96,13 @@ def display(frame):
         cv2.fillPoly(frame, [coords], color)
 
     return frame
+
+
+def time2seconds(time_interval):
+    x = time.strptime(time_interval, "%H:%M:%S")
+    seconds = datetime.timedelta(
+        hours=x.tm_hour, minutes=x.tm_min, seconds=x.tm_sec).total_seconds()
+    return int(seconds)
 
 
 def fetch_parking_spots(cam_ids):
@@ -181,6 +190,8 @@ def parse_arguments(argv):
                         help="path/to/video.mp4")
     parser.add_argument("cam_ids", type=int, nargs="+",
                         help="section to which analyze")
+    parser.add_argument("--time_interval", "-t", type=str, default="00:00:05",
+                        help="do object detection every time interval")
     parser.add_argument("--limit", "-l", type=str, default="00:00:15",
                         help="Allowed time for parked vehicle")
 

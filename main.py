@@ -69,8 +69,8 @@ def main(args):
         frame_counter += 1
 
         # display video
-        frame = display(frame, args.cam_ids)
-        cv2.imshow("parking lot", frame)
+        # frame = display(frame, args.cam_ids)
+        # cv2.imshow("parking lot", frame)
 
     # reset and close connections
     vcap.release()

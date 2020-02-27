@@ -9,7 +9,7 @@ Finally, I decided to also implement the "overtime" option, which means the came
 ## Flexibility
 Although this project might seem quite specific, it can be easily modified to solve other types of problems, such as triggering alarms when a person is on a place he is not supposed to be (e.g. near a painting on an art exhibition).
 ## Requirements
-- Apart from installing the python packages specified in the *requirements.txt* file, you're gonna need PostgreSQL along the PostGIS extension installed.
+- Apart from exporting the *spot.yml* environment, you're gonna need PostgreSQL along the PostGIS extension installed.
 - Modify the username and password from the *config.ini* file under the *src* directory so it fits your needs.
 
 ## Implementation

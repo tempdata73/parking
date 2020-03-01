@@ -14,7 +14,6 @@ def load_inference_resnet50(gpu_device_name=None):
     model = fasterrcnn_resnet50_fpn(pretrained=True)
 
     # set model to inference mode
-    model = fasterrcnn_resnet50_fpn(pretrained=True)
     for param in model.parameters():
         param.requires_grad = False
     with torch.no_grad():
